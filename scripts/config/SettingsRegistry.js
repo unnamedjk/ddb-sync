@@ -47,7 +47,23 @@ export class SettingsRegistry {
       type: String,
       default: 'http://localhost:3000'
     });
+    game.settings.register('ddb-sync', 'proxyUsername', {
+      name: "Proxy Username",
+      hint: "Username for Basic Auth on your custom DDB Proxy.",
+      scope: "world",
+      config: true,
+      type: String,
+      default: ""
+    });
 
+    game.settings.register('ddb-sync', 'proxyPassword', {
+      name: "Proxy Password",
+      hint: "Password for Basic Auth on your custom DDB Proxy.",
+      scope: "world",
+      config: true,
+      type: String,
+      default: ""
+  });
     // User ID Setting
     game.settings.register(this.MODULE_ID, 'userId', {
       name: 'DDB.Settings.UserId.Name',
