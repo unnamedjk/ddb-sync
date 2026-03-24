@@ -25,7 +25,6 @@ import { AttackRollHandler } from '../dice/handlers/AttackRollHandler.js';
 export class DDBSyncManager {
   static ID = 'ddb-sync';
   static SOCKET_NAMESPACE = 'module.ddb-sync';
-  
   constructor() {
     // Initialize services
     this.characterDataService = new CharacterDataService();
@@ -183,6 +182,7 @@ export class DDBSyncManager {
       // Create a unique key for this message
       const messageKey = this.createMessageKey(message);
       
+
       // Check for duplicates
       if (this.messageDeduplicator.isProcessed(messageKey)) {
         console.log('DDB Sync | Skipping duplicate message');
@@ -214,6 +214,7 @@ export class DDBSyncManager {
     console.warn('DDB Sync | CobaltSession cookie has expired or is invalid');
     ui.notifications.error('DDB Sync: Your CobaltSession cookie has expired. Please update it in the module settings.');
     
+
     // Create a dialog prompting the user to update the cookie
     new Dialog({
       title: 'D&D Beyond Cookie Expired',
@@ -244,6 +245,7 @@ export class DDBSyncManager {
       default: 'open_settings'
     }).render(true);
     
+
     // Disconnect to prevent repeated failed auth attempts
     this.disconnect();
   }
