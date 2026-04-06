@@ -10,6 +10,7 @@ import { CharacterMapper } from './services/CharacterMapper.js';
 import { DiceRollHandler } from '../dice/DiceRollHandler.js';
 import { InitiativeRollHandler } from '../dice/handlers/InitiativeRollHandler.js';
 import { GenericRollHandler } from '../dice/handlers/GenericRollHandler.js';
+import { DamageRollHandler } from '../dice/handlers/DamageRollHandler.js';
 import { MessageDeduplicator } from '../websocket/MessageDeduplicator.js';
 import { DiceInputDialog } from '../ui/DiceInputDialog.js';
 import { SaveRollHandler } from '../dice/handlers/SaveRollHandler.js';
@@ -66,42 +67,47 @@ export class DDBSyncManager {
    */
   registerRollHandlers() {
     const services = this.diceRollHandler.getServices();
-    
-    // Register specific roll type handlers
-    const initiativeHandler = new InitiativeRollHandler(
-      services.diceExtractor,
-      services.rollBuilder
-    );
-    this.diceRollHandler.registerRollHandler(initiativeHandler);
+    const { diceExtractor, rollBuilder } = services;
 
-    const saveHandler = new SaveRollHandler(
-      services.diceExtractor,
-      services.rollBuilder
-    );
-    this.diceRollHandler.registerRollHandler(saveHandler);
+    // Registration order matters — RollStrategyDispatcher uses first-match wins.
+    // Specific handlers must come before GenericRollHandler (the catch-all).
 
-    const attackHandler = new AttackRollHandler(
-      services.diceExtractor,
-      services.rollBuilder
+    // 1. Initiative — checks action name === "initiative" before rollType
+    this.diceRollHandler.registerRollHandler(
+      new InitiativeRollHandler(diceExtractor, rollBuilder)
     );
-    this.diceRollHandler.registerRollHandler(attackHandler);
 
-    const abilityCheckHandler = new AbilityCheckRollHandler(
-      services.diceExtractor,
-      services.rollBuilder
+    // 2. Saving throws — rollType === "save"
+    this.diceRollHandler.registerRollHandler(
+      new SaveRollHandler(diceExtractor, rollBuilder)
     );
-    this.diceRollHandler.registerRollHandler(abilityCheckHandler);
 
-    // Register generic handler last (fallback for all other types)
-    const genericHandler = new GenericRollHandler(
-      services.diceExtractor,
-      services.rollBuilder
+    // 3. Attack rolls — rollType === "to hit"
+    //    Creates usage card + D20Roll, stores usageId for step 4
+    this.diceRollHandler.registerRollHandler(
+      new AttackRollHandler(diceExtractor, rollBuilder)
     );
-    this.diceRollHandler.registerRollHandler(genericHandler);
+
+    // 4. Damage rolls — rollType === "damage"
+    //    Reads usageId stored by AttackRollHandler, creates DamageRoll linked to usage card
+    //    MUST come before GenericRollHandler or damage rolls fall through to the generic handler
+    this.diceRollHandler.registerRollHandler(
+      new DamageRollHandler(diceExtractor, rollBuilder)
+    );
+
+    // 5. Ability checks and skill checks — rollType === "check"
+    this.diceRollHandler.registerRollHandler(
+      new AbilityCheckRollHandler(diceExtractor, rollBuilder)
+    );
+
+    // 6. Generic fallback — canHandle() returns true for everything
+    //    Must always be last
+    this.diceRollHandler.registerRollHandler(
+      new GenericRollHandler(diceExtractor, rollBuilder)
+    );
 
     console.log('DDB Sync | Roll handlers registered');
   }
-
   static initialize() {
     console.log(`DDB Sync | Initializing D&D Beyond Sync module`);
     try {
@@ -130,11 +136,13 @@ export class DDBSyncManager {
     const campaignId = game.settings.get(DDBSyncManager.ID, 'campaignId');
     const userId = game.settings.get(DDBSyncManager.ID, 'userId');
     const proxyUrl = game.settings.get(DDBSyncManager.ID, 'proxyUrl');
+    const proxyUser = game.settings.get(DDBSyncManager.ID, 'proxyUsername') || "";
+    const proxyPass = game.settings.get(DDBSyncManager.ID, 'proxyPassword') || "";
 
     console.log('DDB Sync | Connection attempt - Cookie: *** Campaign:', campaignId, 'User:', userId);
 
     // Create WebSocket manager with dependency injection
-    this.websocketManager = new WebSocketManager(cobaltCookie, campaignId, userId, proxyUrl);
+    this.websocketManager = new WebSocketManager(cobaltCookie, campaignId, userId, proxyUrl, proxyUser, proxyPass);
 
     // Register event handlers
     this.websocketManager.on('message', this.handleDDBMessage.bind(this));

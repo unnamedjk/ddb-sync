@@ -7,12 +7,14 @@ import { DDBWebSocket } from '../../websocket/DDBWebSocket.js';
  * SOLID: Single Responsibility - only handles connection management
  */
 export class WebSocketManager extends EventTarget {
-  constructor(cobaltCookie, campaignId, userId, proxyUrl) {
+  constructor(cobaltCookie, campaignId, userId, proxyUrl, proxyUser, proxyPass) {
     super();
     this.cobaltCookie = cobaltCookie;
     this.campaignId = campaignId;
     this.userId = userId;
     this.proxyUrl = proxyUrl;
+    this.proxyUser = proxyUser;
+    this.proxyPass = proxyPass;
     this.websocket = null;
     this.logger = console;
   }
@@ -22,6 +24,22 @@ export class WebSocketManager extends EventTarget {
    * @returns {Promise<void>}
    */
   async connect() {
+    let connectionUrl = this.proxyUrl;
+
+    // Check for user / pass set
+    const user = this.proxyUser?.trim();
+    const pass = this.proxyPass?.trim();
+
+    if (user && pass) {
+        console.log("DDB Sync | Connecting to proxy with Basic Auth...");
+        
+        // Use a Regex to handle both ws:// and wss:// and inject user:pass@
+        // This regex looks for the protocol part (ws/wss://) and replaces it
+        connectionUrl = connectionUrl.replace(/^(wss?:\/\/)/, `$1${user}:${pass}@`);
+    } else {
+        console.log("DDB Sync | Connecting to proxy without extra authentication.");
+    }
+
     if (this.websocket) {
       this.logger.log('DDB Sync | WebSocket already connected, disconnecting first');
       this.disconnect();
@@ -33,7 +51,9 @@ export class WebSocketManager extends EventTarget {
         this.cobaltCookie,
         this.campaignId,
         this.userId,
-        this.proxyUrl
+        this.proxyUrl,
+        this.proxyUser,
+        this.proxyPass
       );
 
       // Forward events from internal WebSocket

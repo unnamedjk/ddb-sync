@@ -1,17 +1,19 @@
 // WebSocket connection handler for D&D Beyond
 export class DDBWebSocket extends EventTarget {
-  constructor(cobaltCookie, campaignId, userId, proxyUrl) {
+  constructor(cobaltCookie, campaignId, userId, proxyUrl, proxyUser = null, proxyPass = null) {
     super();
     this.accessToken = null;
     this.cobaltCookie = cobaltCookie;
     this.campaignId = campaignId;
     this.userId = userId;
     this.proxyUrl = proxyUrl;
+    this.proxyUser = proxyUser; // New
+    this.proxyPass = proxyPass; // New
     this.ws = null;
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
     this.reconnectDelay = 3000;
-    this._listeners = {};  // Store bound listeners for removal
+    this._listeners = {};  
   }
 
   /**
@@ -26,7 +28,26 @@ export class DDBWebSocket extends EventTarget {
       // Use the proxy to bypass CORS restrictions
       const proxyEndpoint = `${this.proxyUrl}/proxy/auth`;
       
+      // Prepare headers
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+
+      // NEW: Add Authorization header if credentials exist
+      if (this.proxyUser && this.proxyPass) {
+        const auth = btoa(`${this.proxyUser}:${this.proxyPass}`);
+        headers['Authorization'] = `Basic ${auth}`;
+      }
+
       const response = await fetch(proxyEndpoint, {
+        method: 'POST',
+        headers: headers, // Use the updated headers object
+        body: JSON.stringify({
+          cobalt: this.cobaltCookie
+        })
+      });
+
+/*      const response = await fetch(proxyEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -35,7 +56,7 @@ export class DDBWebSocket extends EventTarget {
           cobalt: this.cobaltCookie
         })
       });
-
+*/
       if (!response.ok) {
         // Check for authentication failure (401, 403)
         if (response.status === 401 || response.status === 403) {
@@ -235,4 +256,3 @@ export class DDBWebSocket extends EventTarget {
     this._listeners = {};
   }
 }
-
